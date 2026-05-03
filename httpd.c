@@ -26,6 +26,7 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <linux/stat.h>
 
 #define ISspace(x) isspace((int)(x))
 
@@ -44,6 +45,8 @@ int get_line(int, char *, int);
 void headers(int, const char *);
 void not_found(int);
 void serve_file(int, const char *);
+
+/* socket + bind + listen */
 int startup(u_short *);
 void unimplemented(int);
 
@@ -54,6 +57,7 @@ void unimplemented(int);
 /**********************************************************************/
 void accept_request(void *arg)
 {
+    printf("get line\n");
     int client = (intptr_t)arg;
     char buf[1024];
     size_t numchars;
@@ -257,10 +261,12 @@ void execute_cgi(int client, const char *path,
         cannot_execute(client);
         return;
     }
+    printf("HTTP 1.0 200 OK\n");
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     send(client, buf, strlen(buf), 0);
     if (pid == 0)  /* child: CGI script */
     {
+        printf("cgi child\n");
         char meth_env[255];
         char query_env[255];
         char length_env[255];
@@ -279,6 +285,7 @@ void execute_cgi(int client, const char *path,
             sprintf(length_env, "CONTENT_LENGTH=%d", content_length);
             putenv(length_env);
         }
+        printf("execute cgi script\n");
         execl(path, NULL);
         exit(0);
     } else {    /* parent */
@@ -428,10 +435,12 @@ void serve_file(int client, const char *filename)
 /**********************************************************************/
 int startup(u_short *port)
 {
+    printf("socket + bind + listen\n");
     int httpd = 0;
     int on = 1;
     struct sockaddr_in name;
 
+    /* 建立TCP连接，protocol=0代表TCP协议 */
     httpd = socket(PF_INET, SOCK_STREAM, 0);
     if (httpd == -1)
         error_die("socket");
@@ -488,18 +497,23 @@ void unimplemented(int client)
 
 int main(void)
 {
+    /* 服务器sock和端口 */
     int server_sock = -1;
     u_short port = 4000;
+
+    /* 客户端sock */
     int client_sock = -1;
     struct sockaddr_in client_name;
     socklen_t  client_name_len = sizeof(client_name);
     pthread_t newthread;
 
+    /* 启动服务器 */
     server_sock = startup(&port);
     printf("httpd running on port %d\n", port);
 
     while (1)
     {
+        printf("socket + bind + listen\n");
         client_sock = accept(server_sock,
                 (struct sockaddr *)&client_name,
                 &client_name_len);
